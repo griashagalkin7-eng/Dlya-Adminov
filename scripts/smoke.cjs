@@ -48,10 +48,15 @@ async function launch() {
   assert.equal(await window.locator('.metric.total strong').innerText(),'685 ₽');
   if(screenshots) {
     fs.mkdirSync(screenshots,{recursive:true});
-    await window.screenshot({path:path.join(screenshots,'Dlya-Adminov-light.png')});
+    await window.getByRole('status').waitFor({state:'hidden'});
+    await window.screenshot({path:path.join(screenshots,'Dlya-Adminov-light.png'),fullPage:true});
     await window.getByRole('button',{name:'Тёмная тема'}).click();
-    await window.screenshot({path:path.join(screenshots,'Dlya-Adminov-dark.png')});
+    await window.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+    await window.waitForTimeout(250); // Let the button color transitions finish before capturing.
+    await window.screenshot({path:path.join(screenshots,'Dlya-Adminov-dark.png'),fullPage:true});
     await window.getByRole('button',{name:'Светлая тема'}).click();
+    await window.waitForFunction(() => document.documentElement.dataset.theme === 'light');
+    await window.waitForTimeout(250);
   }
   await window.getByRole('button',{name:'Открыть отчёт',exact:true}).click();
   const exportFile = path.join(folder,'report.xlsx');
