@@ -1,0 +1,59 @@
+{
+  "name": "dlya-adminov",
+  "productName": "Dlya Adminov",
+  "version": "1.0.0",
+  "description": "Локальный учёт товаров и услуг для Windows",
+  "author": "Dlya Adminov",
+  "private": true,
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "node scripts/dev.cjs",
+    "build": "vite build",
+    "start": "electron .",
+    "test": "node --test test/*.test.cjs",
+    "test:ui": "npm run build && node scripts/smoke.cjs",
+    "dist:win": "npm run build && electron-builder --win nsis --x64 --publish never"
+  },
+  "dependencies": {
+    "exceljs": "4.4.0",
+    "lucide-react": "^0.468.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "6.3.0",
+    "electron": "45.4.1",
+    "electron-builder": "26.18.0",
+    "playwright": "^1.65.1",
+    "vite": "8.3.8"
+  },
+  "build": {
+    "appId": "ru.dlya-adminov.desktop",
+    "productName": "Dlya Adminov",
+    "artifactName": "Dlya-Adminov-Setup-${version}.${ext}",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Dlya Adminov",
+      "deleteAppDataOnUninstall": false,
+      "installerLanguages": [
+        "ru_RU"
+      ],
+      "language": "1049"
+    }
+  }
+}
