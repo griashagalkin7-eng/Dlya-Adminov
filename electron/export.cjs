@@ -15,14 +15,14 @@ function workbookFor(shift) {
   sheet.getRow(5).height = 28;
   sheet.getRow(5).eachCell(c => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF225549' } }; c.font = { bold: true, color: { argb: 'FFFFFFFF' } }; });
   shift.items.forEach((item, index) => {
-    const row = sheet.addRow([index + 1, item.kind === 'product' ? 'Товар' : 'PS', item.name, item.quantity, item.unitPrice, item.unitPrice * item.quantity]);
+    const row = sheet.addRow([index + 1, { product: 'Товар', service: 'PS', pc: 'ПК' }[item.kind], item.name, item.quantity, item.unitPrice, item.unitPrice * item.quantity]);
     row.height = 25;
     row.getCell(3).alignment = { wrapText: true, vertical: 'middle' };
     row.getCell(5).numFmt = '#,##0'; row.getCell(6).numFmt = '#,##0';
   });
   if (shift.items.length) sheet.autoFilter = { from: 'A5', to: `F${5 + shift.items.length}` };
   sheet.addRow([]);
-  for (const [label, sum] of [['Товары', total(shift, 'product')], ['PS', total(shift, 'service')], ['ИТОГО', total(shift)]]) {
+  for (const [label, sum] of [['Товары', total(shift, 'product')], ['PS', total(shift, 'service')], ['ПК', total(shift, 'pc')], ['ИТОГО', total(shift)]]) {
     const row = sheet.addRow(['', '', label, '', '', sum]);
     row.font = { bold: true }; row.getCell(6).numFmt = '#,##0" ₽"'; row.height = 26;
   }

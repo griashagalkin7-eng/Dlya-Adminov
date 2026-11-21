@@ -46,6 +46,22 @@ async function launch() {
   await window.getByRole('button',{name:'Добавить',exact:true}).click();
   await window.getByRole('cell',{name:'ТВ3 — 1,5 часа',exact:true}).waitFor();
   assert.equal(await window.locator('.metric.total strong').innerText(),'685 ₽');
+  await window.getByRole('button',{name:'ПК',exact:true}).click();
+  assert.equal(await window.locator('.add-panel input').count(),1);
+  assert.equal(await window.locator('.add-panel .discount-toggle').count(),0);
+  for (let n=0;n<2;n++) {
+    await window.getByLabel('Сумма, ₽',{exact:true}).fill('500');
+    await window.getByRole('button',{name:'Добавить',exact:true}).click();
+    await window.waitForFunction(count => document.querySelectorAll('tbody .type-tag.pc').length === count,n+1);
+  }
+  await window.getByRole('button',{name:'Редактировать: ПК',exact:true}).last().click();
+  modal = window.getByRole('dialog');
+  assert.equal(await modal.locator('input').count(),1);
+  await modal.getByLabel('Сумма, ₽',{exact:true}).fill('400');
+  await modal.getByRole('button',{name:'Сохранить',exact:true}).click();
+  await modal.waitFor({state:'hidden'});
+  assert.equal(await window.locator('.metric.pc strong').innerText(),'900 ₽');
+  assert.equal(await window.locator('.metric.total strong').innerText(),'1 585 ₽');
   if(screenshots) {
     fs.mkdirSync(screenshots,{recursive:true});
     await window.getByRole('status').waitFor({state:'hidden'});
@@ -64,14 +80,15 @@ async function launch() {
   await window.getByRole('button',{name:'Скачать XLSX',exact:true}).click();
   await window.getByRole('status').filter({hasText:'Отчёт сохранён'}).waitFor();
   const book = new ExcelJS.Workbook(); await book.xlsx.readFile(exportFile);
-  assert.equal(book.worksheets[0].getCell(`F${book.worksheets[0].rowCount}`).value,685);
+  assert.equal(book.worksheets[0].getCell(`F${book.worksheets[0].rowCount}`).value,1585);
   await window.getByRole('button',{name:'Вернуться в учёт',exact:true}).click();
   await app.close();
   app = undefined;
   window = await launch();
   modal = window.getByRole('dialog');
   await modal.getByRole('button',{name:'Продолжить учёт',exact:true}).click();
-  assert.equal(await window.locator('.metric.total strong').innerText(),'685 ₽');
+  assert.equal(await window.locator('.metric.total strong').innerText(),'1 585 ₽');
+  assert.equal(await window.locator('.metric.pc strong').innerText(),'900 ₽');
   await window.getByRole('button',{name:'Открыть отчёт',exact:true}).click();
   await window.getByRole('button',{name:'Завершить учёт',exact:true}).click();
   await window.getByRole('dialog').getByRole('button',{name:'Завершить учёт',exact:true}).click();
@@ -84,10 +101,16 @@ async function launch() {
   await modal.getByLabel('Сумма до дисконта, ₽').fill('600');
   await modal.getByRole('button',{name:'Сохранить',exact:true}).click();
   await modal.waitFor({state:'hidden'});
-  assert.equal(await window.locator('.metric.total strong').innerText(),'730 ₽');
+  assert.equal(await window.locator('.metric.total strong').innerText(),'1 630 ₽');
+  await window.getByRole('button',{name:'Удалить: ПК',exact:true}).last().click();
+  modal = window.getByRole('dialog');
+  await modal.getByRole('button',{name:'Удалить',exact:true}).click();
+  await modal.waitFor({state:'hidden'});
+  assert.equal(await window.locator('.metric.pc strong').innerText(),'500 ₽');
   await window.getByRole('button',{name:'Статистика',exact:true}).click();
   await window.getByLabel('Месяц',{exact:true}).fill('2026-11');
-  assert.equal(await window.locator('.metric.total strong').innerText(),'730 ₽');
+  assert.equal(await window.locator('.metric.total strong').innerText(),'1 230 ₽');
+  assert.equal(await window.locator('.metric.pc strong').innerText(),'500 ₽');
   assert.deepEqual(errors,[]);
-  console.log('UI passed: settings, product search, PS discount, XLSX, restart, finish, history edit and statistics.');
+  console.log('UI passed: products, PS, PC amount-only entry/edit/delete, XLSX, restart, history and statistics.');
 })().catch(error => { console.error(error);process.exitCode=1; }).finally(async () => { if(app)await app.close(); fs.rmSync(folder,{recursive:true,force:true}); });

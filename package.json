@@ -1,13 +1,14 @@
 {
   "name": "dlya-adminov",
   "productName": "Dlya Adminov",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Локальный учёт товаров и услуг для Windows",
   "author": "Dlya Adminov",
   "private": true,
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "node scripts/dev.cjs",
+    "preview:local": "vite",
     "build": "vite build",
     "start": "electron .",
     "test": "node --test test/*.test.cjs",

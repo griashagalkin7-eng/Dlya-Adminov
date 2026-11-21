@@ -6,6 +6,7 @@ const path = require('node:path');
 const ExcelJS = require('exceljs');
 const { Store } = require('../electron/store.cjs');
 const { workbookFor } = require('../electron/export.cjs');
+const { total } = require('../electron/domain.cjs');
 const temporary = t => { const folder = fs.mkdtempSync(path.join(os.tmpdir(),'dlya-adminov-test-')); t.after(() => fs.rmSync(folder,{recursive:true,force:true})); return folder; };
 test('active shift survives restart; storage errors leave last committed state intact', t => {
   const folder = temporary(t);
@@ -44,4 +45,37 @@ test('XLSX round trip preserves Russian names, final prices, totals and literal 
   assert.equal(sheet.getCell('E6').value,495);
   assert.equal(sheet.getCell('F6').value,495);
   assert.equal(sheet.getCell(`F${sheet.rowCount}`).value,495);
+});
+test('v1 ledger survives upgrade, PC additions and subsequent restarts', t => {
+  const folder = temporary(t);
+  const fixture = fs.readFileSync(path.join(__dirname,'fixtures/ledger-v1.json'),'utf8');
+  fs.writeFileSync(path.join(folder,'ledger.json'),fixture);
+  const expected = JSON.parse(fixture);
+  const store = new Store(folder);
+  assert.deepEqual(store.read(),expected);
+  assert.equal(fs.readFileSync(path.join(folder,'ledger.json'),'utf8'),fixture);
+  store.execute({type:'addPc',payload:{shiftId:'active-v1',price:700}});
+  const state = new Store(folder).read();
+  assert.deepEqual(state.shifts[0],expected.shifts[0]);
+  assert.deepEqual(state.settings,expected.settings);
+  assert.deepEqual(state.shifts[1].items[0],expected.shifts[1].items[0]);
+  assert.equal(total(state.shifts[1]),1200);
+  assert.equal(total(state.shifts[1],'pc'),700);
+});
+test('XLSX has a distinct PC group and subtotal included in the overall total', async t => {
+  const store = new Store(temporary(t));
+  let state = store.execute({type:'start',payload:{date:'2026-11-21',period:'day'}});
+  const shiftId = state.shifts[0].id;
+  store.execute({type:'discount',payload:{discount:50}});
+  store.execute({type:'addService',payload:{shiftId,name:'PS',price:200,discount:true}});
+  state = store.execute({type:'addPc',payload:{shiftId,price:500}});
+  const buffer = await workbookFor(state.shifts[0]).xlsx.writeBuffer();
+  const book = new ExcelJS.Workbook(); await book.xlsx.load(buffer);
+  const sheet = book.worksheets[0];
+  assert.equal(sheet.getCell('B7').value,'ПК');
+  assert.equal(sheet.getCell('C7').value,'ПК');
+  assert.equal(sheet.getCell('F7').value,500);
+  const subtotal = sheet.getRows(9,4).find(row => row.getCell(3).value === 'ПК');
+  assert.equal(subtotal.getCell(6).value,500);
+  assert.equal(sheet.getCell(`F${sheet.rowCount}`).value,600);
 });

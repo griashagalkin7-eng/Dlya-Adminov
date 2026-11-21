@@ -79,9 +79,20 @@ function applyCommand(previous, command) {
       shift.items.push({ id: randomUUID(), kind: 'service', name: text(p.name), quantity: 1, basePrice, discountPercent: discount, unitPrice: priceAfterDiscount(basePrice, discount) });
       break;
     }
+    case 'addPc': {
+      const shift = getShift(state, p.shiftId);
+      const price = number(p.price, 0, MAX, 'Сумма');
+      shift.items.push({ id: randomUUID(), kind: 'pc', name: 'ПК', quantity: 1, basePrice: price, discountPercent: 0, unitPrice: price });
+      break;
+    }
     case 'editItem': {
       const item = getShift(state, p.shiftId).items.find(i => i.id === p.itemId) || fail('Позиция не найдена.');
       if (item.kind === 'product') item.quantity = number(p.quantity, 1, 100000, 'Количество');
+      else if (item.kind === 'pc') {
+        item.basePrice = number(p.price, 0, MAX, 'Сумма');
+        item.unitPrice = item.basePrice;
+        item.discountPercent = 0;
+      }
       else {
         item.name = text(p.name);
         item.basePrice = number(p.price, 0, MAX, 'Цена');
@@ -129,9 +140,10 @@ function validateState(state) {
     if (!['active', 'closed'].includes(s.status) || !Array.isArray(s.items)) fail('Некорректный учёт.');
     for (const i of s.items) {
       id(i.id); text(i.name);
-      if (!['product', 'service'].includes(i.kind)) fail('Неизвестный тип позиции.');
+      if (!['product', 'service', 'pc'].includes(i.kind)) fail('Неизвестный тип позиции.');
       number(i.quantity, 1, 100000, 'Количество'); number(i.basePrice, 0, MAX, 'Цена'); number(i.discountPercent, 0, 100, 'Скидка');
       if (i.unitPrice !== priceAfterDiscount(i.basePrice, i.discountPercent)) fail('Некорректная цена позиции.');
+      if (i.kind === 'pc' && (i.discountPercent !== 0 || i.quantity !== 1 || i.name !== 'ПК')) fail('Некорректная запись ПК.');
     }
     if (!Number.isSafeInteger(total(s))) fail('Слишком большая сумма учёта.');
   }

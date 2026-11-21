@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "revision": 5,
+  "settings": { "discount": 10, "theme": "dark" },
+  "products": [{ "id": "old-product", "name": "Вода", "price": 105 }],
+  "services": [{ "id": "old-service", "name": "ТВ2 2 часа" }],
+  "shifts": [
+    {
+      "id": "closed-v1", "date": "2026-11-19", "period": "day", "status": "closed",
+      "createdAt": "2026-11-19T05:00:00.000Z", "closedAt": "2026-11-19T17:00:00.000Z",
+      "items": [{ "id": "old-product-entry", "kind": "product", "productId": "old-product", "name": "Вода", "quantity": 2, "basePrice": 105, "discountPercent": 10, "unitPrice": 95 }]
+    },
+    {
+      "id": "active-v1", "date": "2026-11-19", "period": "night", "status": "active",
+      "createdAt": "2026-11-19T17:00:00.000Z", "closedAt": null,
+      "items": [{ "id": "old-service-entry", "kind": "service", "name": "ТВ2 2 часа", "quantity": 1, "basePrice": 500, "discountPercent": 0, "unitPrice": 500 }]
+    }
+  ]
+}
