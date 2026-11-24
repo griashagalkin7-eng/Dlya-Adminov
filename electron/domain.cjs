@@ -1,5 +1,6 @@
 const { randomUUID } = require('node:crypto');
 const MAX = 1_000_000_000;
+const DEFAULT_ADMIN_PERCENT = 10;
 const fail = (text) => { throw new Error(text); };
 function text(value, label = 'Название') {
   if (typeof value !== 'string' || !value.trim() || value.trim().length > 180) fail(`${label}: введите от 1 до 180 символов.`);
@@ -18,8 +19,19 @@ const paymentMethod = (v) => ['cash', 'transfer'].includes(v) ? v : fail('Выб
 const priceAfterDiscount = (price, discount) => Math.round(price * (100 - discount) / 100);
 const total = (shift, kind) => shift.items.filter(i => !kind || i.kind === kind).reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
 const paymentTotal = (shift, method) => shift.items.filter(i => (i.paymentMethod || null) === method).reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
+function adminPercent(value) {
+  number(value, 0, 100, 'Процент админов', false);
+  if (Math.abs(value * 100 - Math.round(value * 100)) > 0.000001) fail('Укажите процент с точностью до двух знаков после запятой.');
+  return value;
+}
+function captureAdminRate(state, day) {
+  if (state.adminRates?.[day] === undefined) {
+    state.adminRates ??= {};
+    state.adminRates[day] = state.settings.adminPercent ?? DEFAULT_ADMIN_PERCENT;
+  }
+}
 function initialState() {
-  return { schemaVersion: 1, revision: 0, settings: { discount: 0, theme: 'light' }, products: [], services: [], shifts: [] };
+  return { schemaVersion: 1, revision: 0, settings: { discount: 0, theme: 'light', adminPercent: DEFAULT_ADMIN_PERCENT }, products: [], services: [], shifts: [] };
 }
 function getShift(state, id) {
   return state.shifts.find(s => s.id === id) || fail('Учёт не найден.');
@@ -34,6 +46,19 @@ function applyCommand(previous, command) {
       break;
     case 'discount':
       state.settings.discount = number(p.discount, 0, 100, 'Скидка');
+      break;
+    case 'adminPercent': {
+      const percent = adminPercent(p.percent);
+      // Freeze the old rate for existing dates before changing the default.
+      for (const shift of state.shifts) captureAdminRate(state, shift.date);
+      state.settings.adminPercent = percent;
+      // The first configuration can enable calculation for an ongoing shift.
+      for (const shift of state.shifts.filter(s => s.status === 'active')) captureAdminRate(state, shift.date);
+      break;
+    }
+    case 'adminRate':
+      state.adminRates ??= {};
+      state.adminRates[date(p.date)] = adminPercent(p.percent);
       break;
     case 'catalogSave': {
       if (!['products', 'services'].includes(p.catalog)) fail('Неизвестный список.');
@@ -56,11 +81,13 @@ function applyCommand(previous, command) {
     case 'start':
       if (state.shifts.some(s => s.status === 'active')) fail('Сначала завершите текущий учёт.');
       state.shifts.push({ id: randomUUID(), date: date(p.date), period: period(p.period), status: 'active', createdAt: new Date().toISOString(), closedAt: null, items: [] });
+      captureAdminRate(state, p.date);
       break;
     case 'shiftMeta': {
       const shift = getShift(state, p.shiftId);
       shift.date = date(p.date);
       shift.period = period(p.period);
+      captureAdminRate(state, shift.date);
       break;
     }
     case 'addProduct': {
@@ -135,6 +162,11 @@ function validateState(state) {
   if (!state || state.schemaVersion !== 1 || !Array.isArray(state.shifts) || !Array.isArray(state.products) || !Array.isArray(state.services)) fail('Неподдерживаемый формат данных.');
   number(state.revision, 0, Number.MAX_SAFE_INTEGER, 'Версия данных');
   number(state.settings.discount, 0, 100, 'Скидка');
+  if (state.settings.adminPercent !== undefined && state.settings.adminPercent !== null) adminPercent(state.settings.adminPercent);
+  if (state.adminRates !== undefined) {
+    if (!state.adminRates || Array.isArray(state.adminRates) || typeof state.adminRates !== 'object') fail('Некорректные ставки админов.');
+    for (const [day, percent] of Object.entries(state.adminRates)) { date(day); adminPercent(percent); }
+  }
   if (!['light', 'dark'].includes(state.settings.theme)) fail('Ошибка темы.');
   const ids = new Set();
   const id = (v) => { text(v, 'Идентификатор'); if (ids.has(v)) fail('Повторяющийся идентификатор.'); ids.add(v); };
