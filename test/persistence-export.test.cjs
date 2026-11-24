@@ -13,7 +13,7 @@ test('active shift survives restart; storage errors leave last committed state i
   const store = new Store(folder);
   store.execute({type:'start',payload:{date:'2026-11-19',period:'day'}});
   const shiftId = store.read().shifts[0].id;
-  store.execute({type:'addService',payload:{shiftId,name:'ТВ2 2 часа',price:600,discount:false}});
+  store.execute({type:'addService',payload:{paymentMethod:'cash',shiftId,name:'ТВ2 2 часа',price:600,discount:false}});
   const expected = store.read();
   assert.deepEqual(new Store(folder).read(),expected);
   store.file = folder; // Rename onto a directory must fail, even under elevated permissions.
@@ -34,7 +34,7 @@ test('XLSX round trip preserves Russian names, final prices, totals and literal 
   let state = store.execute({type:'start',payload:{date:'2026-11-19',period:'night'}});
   const shiftId = state.shifts[0].id;
   store.execute({type:'discount',payload:{discount:10}});
-  state = store.execute({type:'addService',payload:{shiftId,name:'=ТВ3 — 1,5 часа',price:550,discount:true}});
+  state = store.execute({type:'addService',payload:{paymentMethod:'cash',shiftId,name:'=ТВ3 — 1,5 часа',price:550,discount:true}});
   const filename = path.join(folder,'отчёт.xlsx');
   await workbookFor(state.shifts[0]).xlsx.writeFile(filename);
   const book = new ExcelJS.Workbook(); await book.xlsx.readFile(filename);
@@ -54,7 +54,7 @@ test('v1 ledger survives upgrade, PC additions and subsequent restarts', t => {
   const store = new Store(folder);
   assert.deepEqual(store.read(),expected);
   assert.equal(fs.readFileSync(path.join(folder,'ledger.json'),'utf8'),fixture);
-  store.execute({type:'addPc',payload:{shiftId:'active-v1',price:700}});
+  store.execute({type:'addPc',payload:{paymentMethod:'cash',shiftId:'active-v1',price:700}});
   const state = new Store(folder).read();
   assert.deepEqual(state.shifts[0],expected.shifts[0]);
   assert.deepEqual(state.settings,expected.settings);
@@ -67,8 +67,8 @@ test('XLSX has a distinct PC group and subtotal included in the overall total', 
   let state = store.execute({type:'start',payload:{date:'2026-11-21',period:'day'}});
   const shiftId = state.shifts[0].id;
   store.execute({type:'discount',payload:{discount:50}});
-  store.execute({type:'addService',payload:{shiftId,name:'PS',price:200,discount:true}});
-  state = store.execute({type:'addPc',payload:{shiftId,price:500}});
+  store.execute({type:'addService',payload:{paymentMethod:'cash',shiftId,name:'PS',price:200,discount:true}});
+  state = store.execute({type:'addPc',payload:{paymentMethod:'cash',shiftId,price:500}});
   const buffer = await workbookFor(state.shifts[0]).xlsx.writeBuffer();
   const book = new ExcelJS.Workbook(); await book.xlsx.load(buffer);
   const sheet = book.worksheets[0];

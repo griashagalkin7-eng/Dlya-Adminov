@@ -14,8 +14,10 @@ function date(value) {
   return value;
 }
 const period = (v) => ['day', 'night'].includes(v) ? v : fail('Выберите день или ночь.');
+const paymentMethod = (v) => ['cash', 'transfer'].includes(v) ? v : fail('Выберите оплату: наличка или перевод.');
 const priceAfterDiscount = (price, discount) => Math.round(price * (100 - discount) / 100);
 const total = (shift, kind) => shift.items.filter(i => !kind || i.kind === kind).reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
+const paymentTotal = (shift, method) => shift.items.filter(i => (i.paymentMethod || null) === method).reduce((sum, i) => sum + i.unitPrice * i.quantity, 0);
 function initialState() {
   return { schemaVersion: 1, revision: 0, settings: { discount: 0, theme: 'light' }, products: [], services: [], shifts: [] };
 }
@@ -63,30 +65,34 @@ function applyCommand(previous, command) {
     }
     case 'addProduct': {
       const shift = getShift(state, p.shiftId);
+      const payment = paymentMethod(p.paymentMethod);
       const product = state.products.find(i => i.id === p.productId) || fail('Выберите товар из списка.');
       const quantity = number(p.quantity, 1, 100000, 'Количество');
       const discount = state.settings.discount;
       const unitPrice = priceAfterDiscount(product.price, discount);
-      const existing = shift.items.find(i => i.kind === 'product' && i.productId === product.id && i.name === product.name && i.basePrice === product.price && i.discountPercent === discount);
+      const existing = shift.items.find(i => i.kind === 'product' && i.productId === product.id && i.name === product.name && i.basePrice === product.price && i.discountPercent === discount && i.paymentMethod === payment);
       if (existing) existing.quantity = number(existing.quantity + quantity, 1, 100000, 'Количество');
-      else shift.items.push({ id: randomUUID(), kind: 'product', productId: product.id, name: product.name, quantity, basePrice: product.price, discountPercent: discount, unitPrice });
+      else shift.items.push({ id: randomUUID(), kind: 'product', productId: product.id, name: product.name, quantity, basePrice: product.price, discountPercent: discount, unitPrice, paymentMethod: payment });
       break;
     }
     case 'addService': {
       const shift = getShift(state, p.shiftId);
+      const payment = paymentMethod(p.paymentMethod);
       const basePrice = number(p.price, 0, MAX, 'Цена');
       const discount = p.discount ? state.settings.discount : 0;
-      shift.items.push({ id: randomUUID(), kind: 'service', name: text(p.name), quantity: 1, basePrice, discountPercent: discount, unitPrice: priceAfterDiscount(basePrice, discount) });
+      shift.items.push({ id: randomUUID(), kind: 'service', name: text(p.name), quantity: 1, basePrice, discountPercent: discount, unitPrice: priceAfterDiscount(basePrice, discount), paymentMethod: payment });
       break;
     }
     case 'addPc': {
       const shift = getShift(state, p.shiftId);
+      const payment = paymentMethod(p.paymentMethod);
       const price = number(p.price, 0, MAX, 'Сумма');
-      shift.items.push({ id: randomUUID(), kind: 'pc', name: 'ПК', quantity: 1, basePrice: price, discountPercent: 0, unitPrice: price });
+      shift.items.push({ id: randomUUID(), kind: 'pc', name: 'ПК', quantity: 1, basePrice: price, discountPercent: 0, unitPrice: price, paymentMethod: payment });
       break;
     }
     case 'editItem': {
       const item = getShift(state, p.shiftId).items.find(i => i.id === p.itemId) || fail('Позиция не найдена.');
+      if (p.paymentMethod !== undefined) item.paymentMethod = paymentMethod(p.paymentMethod);
       if (item.kind === 'product') item.quantity = number(p.quantity, 1, 100000, 'Количество');
       else if (item.kind === 'pc') {
         item.basePrice = number(p.price, 0, MAX, 'Сумма');
@@ -140,6 +146,8 @@ function validateState(state) {
     if (!['active', 'closed'].includes(s.status) || !Array.isArray(s.items)) fail('Некорректный учёт.');
     for (const i of s.items) {
       id(i.id); text(i.name);
+      // Entries from earlier versions have no recorded payment method.
+      if (i.paymentMethod !== undefined) paymentMethod(i.paymentMethod);
       if (!['product', 'service', 'pc'].includes(i.kind)) fail('Неизвестный тип позиции.');
       number(i.quantity, 1, 100000, 'Количество'); number(i.basePrice, 0, MAX, 'Цена'); number(i.discountPercent, 0, 100, 'Скидка');
       if (i.unitPrice !== priceAfterDiscount(i.basePrice, i.discountPercent)) fail('Некорректная цена позиции.');
@@ -149,4 +157,4 @@ function validateState(state) {
   }
   return state;
 }
-module.exports = { initialState, applyCommand, validateState, priceAfterDiscount, total, getShift };
+module.exports = { initialState, applyCommand, validateState, priceAfterDiscount, total, paymentTotal, getShift };

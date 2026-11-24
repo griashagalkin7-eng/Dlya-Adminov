@@ -38,12 +38,12 @@ async function launch() {
   await window.getByRole('textbox',{name:'Поиск товара'}).fill('Вод');
   await window.locator('.suggestions').getByRole('button').first().click();
   await window.getByLabel('Количество',{exact:true}).fill('2');
-  await window.getByRole('button',{name:'Добавить',exact:true}).click();
+  await window.getByRole('button',{name:'Наличка',exact:true}).click();
   await window.getByRole('button',{name:'PS / услуги',exact:true}).click();
   await window.getByLabel('Услуга / описание').fill('ТВ3 — 1,5 часа');
   await window.getByLabel('Сумма, ₽',{exact:true}).fill('550');
   await window.getByRole('button',{name:'Дисконт 10%',exact:true}).click();
-  await window.getByRole('button',{name:'Добавить',exact:true}).click();
+  await window.getByRole('button',{name:'Перевод',exact:true}).click();
   await window.getByRole('cell',{name:'ТВ3 — 1,5 часа',exact:true}).waitFor();
   assert.equal(await window.locator('.metric.total strong').innerText(),'685 ₽');
   await window.getByRole('button',{name:'ПК',exact:true}).click();
@@ -51,16 +51,19 @@ async function launch() {
   assert.equal(await window.locator('.add-panel .discount-toggle').count(),0);
   for (let n=0;n<2;n++) {
     await window.getByLabel('Сумма, ₽',{exact:true}).fill('500');
-    await window.getByRole('button',{name:'Добавить',exact:true}).click();
+    await window.getByRole('button',{name:n === 0 ? 'Наличка' : 'Перевод',exact:true}).click();
     await window.waitForFunction(count => document.querySelectorAll('tbody .type-tag.pc').length === count,n+1);
   }
   await window.getByRole('button',{name:'Редактировать: ПК',exact:true}).last().click();
   modal = window.getByRole('dialog');
   assert.equal(await modal.locator('input').count(),1);
   await modal.getByLabel('Сумма, ₽',{exact:true}).fill('400');
+  await modal.getByLabel('Способ оплаты',{exact:true}).selectOption('cash');
   await modal.getByRole('button',{name:'Сохранить',exact:true}).click();
   await modal.waitFor({state:'hidden'});
   assert.equal(await window.locator('.metric.pc strong').innerText(),'900 ₽');
+  assert.equal(await window.locator('.payment-total.cash strong').innerText(),'1 090 ₽');
+  assert.equal(await window.locator('.payment-total.transfer strong').innerText(),'495 ₽');
   assert.equal(await window.locator('.metric.total strong').innerText(),'1 585 ₽');
   if(screenshots) {
     fs.mkdirSync(screenshots,{recursive:true});
@@ -81,6 +84,9 @@ async function launch() {
   await window.getByRole('status').filter({hasText:'Отчёт сохранён'}).waitFor();
   const book = new ExcelJS.Workbook(); await book.xlsx.readFile(exportFile);
   assert.equal(book.worksheets[0].getCell(`F${book.worksheets[0].rowCount}`).value,1585);
+  assert.equal(book.worksheets[0].getCell('G6').value,'Наличка');
+  assert.equal(book.worksheets[0].getCell('G7').value,'Перевод');
+  assert.equal(book.worksheets[0].getCell('G9').value,'Наличка');
   await window.getByRole('button',{name:'Вернуться в учёт',exact:true}).click();
   await app.close();
   app = undefined;
@@ -89,6 +95,8 @@ async function launch() {
   await modal.getByRole('button',{name:'Продолжить учёт',exact:true}).click();
   assert.equal(await window.locator('.metric.total strong').innerText(),'1 585 ₽');
   assert.equal(await window.locator('.metric.pc strong').innerText(),'900 ₽');
+  assert.equal(await window.locator('.payment-total.cash strong').innerText(),'1 090 ₽');
+  assert.equal(await window.locator('.payment-total.transfer strong').innerText(),'495 ₽');
   await window.getByRole('button',{name:'Открыть отчёт',exact:true}).click();
   await window.getByRole('button',{name:'Завершить учёт',exact:true}).click();
   await window.getByRole('dialog').getByRole('button',{name:'Завершить учёт',exact:true}).click();
@@ -110,6 +118,8 @@ async function launch() {
   await window.getByRole('button',{name:'Статистика',exact:true}).click();
   await window.getByLabel('Месяц',{exact:true}).fill('2026-11');
   assert.equal(await window.locator('.metric.total strong').innerText(),'1 230 ₽');
+  assert.equal(await window.locator('.payment-total.cash strong').innerText(),'690 ₽');
+  assert.equal(await window.locator('.payment-total.transfer strong').innerText(),'540 ₽');
   assert.equal(await window.locator('.metric.pc strong').innerText(),'500 ₽');
   assert.deepEqual(errors,[]);
   console.log('UI passed: products, PS, PC amount-only entry/edit/delete, XLSX, restart, history and statistics.');

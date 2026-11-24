@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { LayoutDashboard, History, ChartNoAxesCombined, Settings, Sun, Moon, Plus, Search, Package, Gamepad2, Monitor, ArrowRight, ArrowLeft, Download, Pencil, Trash2, X, Check, FileText, CheckCircle2, CircleHelp, Percent, CalendarDays, ChevronDown } from 'lucide-react';
+import { LayoutDashboard, History, ChartNoAxesCombined, Settings, Sun, Moon, Plus, Search, Package, Gamepad2, Monitor, Banknote, ArrowLeftRight, ArrowRight, ArrowLeft, Download, Pencil, Trash2, X, Check, FileText, CheckCircle2, CircleHelp, Percent, CalendarDays, ChevronDown } from 'lucide-react';
 import './style.css';
 import './preview-bridge.js';
 
@@ -9,6 +9,8 @@ const dayLabel = period => period === 'day' ? 'День' : 'Ночь';
 const dateLabel = date => date.split('-').reverse().join('.');
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 const sum = (shift, kind) => shift?.items.filter(i => !kind || i.kind === kind).reduce((a, i) => a + i.unitPrice * i.quantity, 0) || 0;
+const paymentLabels = { cash: 'Наличка', transfer: 'Перевод', unknown: 'Не указано' };
+const paidSum = (shift, method) => shift.items.filter(i => (i.paymentMethod || 'unknown') === method).reduce((a,i) => a + i.unitPrice * i.quantity,0);
 const net = (value, discount) => Math.round(Number(value) * (100-discount)/100);
 const activeOf = data => data.shifts.find(s => s.status === 'active');
 const icons = { ledger: LayoutDashboard, history: History, stats: ChartNoAxesCombined, settings: Settings };
@@ -36,17 +38,24 @@ function Modal({ title, children, close }) {
 function Empty({ icon: Icon = FileText, title, text, children }) {
   return <div className="empty"><div className="empty-icon"><Icon size={28}/></div><h2>{title}</h2><p>{text}</p>{children}</div>;
 }
+function PaymentButtons({ disabled = false }) {
+  return <div className="payment-buttons"><Button variant="primary" type="submit" name="paymentMethod" value="cash" disabled={disabled}><Banknote size={17}/>Наличка</Button><Button variant="transfer" type="submit" name="paymentMethod" value="transfer" disabled={disabled}><ArrowLeftRight size={17}/>Перевод</Button></div>;
+}
+function PaymentSummary({ shift }) {
+  const methods = shift.items.some(i => !i.paymentMethod) ? ['cash','transfer','unknown'] : ['cash','transfer'];
+  return <div className="payment-summary" aria-label="Итоги по способам оплаты"><span>По оплате</span>{methods.map(method => <div key={method} className={`payment-total ${method}`}><span>{paymentLabels[method]}</span><strong>{rub(paidSum(shift,method))}</strong></div>)}</div>;
+}
 function Summary({ shift }) {
-  return <div className="summary-grid">
+  return <><div className="summary-grid">
     <div className="metric"><span className="metric-label">Товары <Package size={17}/></span><strong>{rub(sum(shift, 'product'))}</strong><small>{shift.items.filter(i => i.kind === 'product').reduce((a,i) => a+i.quantity,0)} шт. в учёте</small></div>
     <div className="metric"><span className="metric-label">PS / услуги <Gamepad2 size={17}/></span><strong>{rub(sum(shift, 'service'))}</strong><small>{shift.items.filter(i => i.kind === 'service').length} позиций</small></div>
     <div className="metric pc"><span className="metric-label">ПК <Monitor size={17}/></span><strong>{rub(sum(shift, 'pc'))}</strong><small>Записей: {shift.items.filter(i => i.kind === 'pc').length}</small></div>
     <div className="metric total"><span className="metric-label">Общая сумма <ChartNoAxesCombined size={17}/></span><strong>{rub(sum(shift))}</strong><small>С учётом применённых скидок</small></div>
-  </div>;
+  </div><PaymentSummary shift={shift}/></>;
 }
 function ItemsTable({ shift, editable, onEdit, onDelete }) {
   if (!shift.items.length) return <Empty icon={Package} title="Здесь появятся добавленные позиции" text="Выберите товар, добавьте услугу PS или внесите сумму за ПК."/>;
-  return <div className="table-scroll"><table><thead><tr><th className="number-col">№</th><th>Наименование</th><th>Группа</th><th className="numeric">Кол-во</th><th className="numeric">Цена за ед.</th><th className="numeric">Сумма</th>{editable && <th className="actions-col"/>}</tr></thead><tbody>{shift.items.map((item,index) => <tr key={item.id}><td className="muted">{index+1}</td><td className="item-name">{item.name}</td><td><span className={`type-tag ${item.kind}`}>{{ product: 'Товар', service: 'PS', pc: 'ПК' }[item.kind]}</span></td><td className="numeric">{item.quantity}</td><td className="numeric muted">{rub(item.unitPrice)}</td><td className="numeric strong">{rub(item.unitPrice*item.quantity)}</td>{editable && <td><div className="row-actions"><IconButton title={`Редактировать: ${item.name}`} onClick={() => onEdit(item)}><Pencil size={15}/></IconButton><IconButton title={`Удалить: ${item.name}`} onClick={() => onDelete(item)}><Trash2 size={15}/></IconButton></div></td>}</tr>)}</tbody></table></div>;
+  return <div className="table-scroll"><table><thead><tr><th className="number-col">№</th><th>Наименование</th><th>Группа</th><th>Оплата</th><th className="numeric">Кол-во</th><th className="numeric">Цена за ед.</th><th className="numeric">Сумма</th>{editable && <th className="actions-col"/>}</tr></thead><tbody>{shift.items.map((item,index) => <tr key={item.id}><td className="muted">{index+1}</td><td className="item-name">{item.name}</td><td><span className={`type-tag ${item.kind}`}>{{ product: 'Товар', service: 'PS', pc: 'ПК' }[item.kind]}</span></td><td><span className={`payment-tag ${item.paymentMethod || 'unknown'}`}>{paymentLabels[item.paymentMethod || 'unknown']}</span></td><td className="numeric">{item.quantity}</td><td className="numeric muted">{rub(item.unitPrice)}</td><td className="numeric strong">{rub(item.unitPrice*item.quantity)}</td>{editable && <td><div className="row-actions"><IconButton title={`Редактировать: ${item.name}`} onClick={() => onEdit(item)}><Pencil size={15}/></IconButton><IconButton title={`Удалить: ${item.name}`} onClick={() => onDelete(item)}><Trash2 size={15}/></IconButton></div></td>}</tr>)}</tbody></table></div>;
 }
 
 function AddPosition({ data, shift, run, busy, goSettings }) {
@@ -63,11 +72,12 @@ function AddPosition({ data, shift, run, busy, goSettings }) {
   const matches = data.products.filter(p => p.name.toLocaleLowerCase('ru').includes(query.toLocaleLowerCase('ru')));
   async function submit(event) {
     event.preventDefault();
+    const paymentMethod = event.nativeEvent.submitter?.value;
     const command = tab === 'product'
-      ? { type: 'addProduct', payload: { shiftId: shift.id, productId: selected, quantity: Number(quantity) } }
+      ? { type: 'addProduct', payload: { shiftId: shift.id, productId: selected, quantity: Number(quantity), paymentMethod } }
       : tab === 'pc'
-        ? { type: 'addPc', payload: { shiftId: shift.id, price: Number(pcPrice) } }
-        : { type: 'addService', payload: { shiftId: shift.id, name: serviceName, price: Number(price), discount } };
+        ? { type: 'addPc', payload: { shiftId: shift.id, price: Number(pcPrice), paymentMethod } }
+        : { type: 'addService', payload: { shiftId: shift.id, name: serviceName, price: Number(price), discount, paymentMethod } };
     if (await run(command, 'Позиция добавлена')) {
       if (tab === 'service') { setServiceName(''); setPrice(''); setDiscount(false); }
       if (tab === 'pc') setPcPrice('');
@@ -83,15 +93,15 @@ function AddPosition({ data, shift, run, busy, goSettings }) {
         </label>
         <label>Количество<input type="number" min="1" max="100000" step="1" required value={quantity} onChange={e => setQuantity(e.target.value)}/></label>
         <label>Цена за ед.<div className="price-preview">{product ? rub(net(product.price,data.settings.discount)) : '—'}</div></label>
-        <Button variant="primary" type="submit" disabled={!product}><Plus size={17}/>Добавить</Button>
+        <PaymentButtons disabled={!product}/>
       </div> : tab === 'pc' ? <div className="add-fields pc-fields">
         <label>Сумма, ₽<input type="number" min="0" max="1000000000" step="1" required value={pcPrice} placeholder="0" onChange={e => setPcPrice(e.target.value)}/></label>
-        <Button variant="primary" type="submit"><Plus size={17}/>Добавить</Button>
+        <PaymentButtons/>
       </div> : <div className="add-fields service-fields">
         <label>Услуга / описание<input value={serviceName} list="service-presets" placeholder="Например: ТВ3 — 1,5 часа" required maxLength="180" onChange={e => setServiceName(e.target.value)}/><datalist id="service-presets">{data.services.map(s => <option key={s.id} value={s.name}/>)}</datalist></label>
         <label>Сумма, ₽<input type="number" min="0" max="1000000000" step="1" required value={price} placeholder="0" onChange={e => setPrice(e.target.value)}/></label>
         <button className={`discount-toggle ${discount ? 'enabled' : ''}`} aria-pressed={discount} type="button" onClick={() => setDiscount(!discount)}><Percent size={16}/>Дисконт {data.settings.discount}%{discount && <Check size={14}/>}</button>
-        <Button variant="primary" type="submit"><Plus size={17}/>Добавить</Button>
+        <PaymentButtons/>
       </div>}
     </fieldset></form>
     {tab !== 'pc' && <div className="form-note"><Percent size={13}/>{tab === 'product' ? `Скидка ${data.settings.discount}% применяется к товарам автоматически.` : discount ? `К оплате: ${rub(net(price || 0,data.settings.discount))}. Скидка будет применена один раз.` : 'Введите полную сумму услуги. Если цена уже со скидкой, не включайте дисконт.'}</div>}
@@ -113,10 +123,12 @@ function ItemEdit({ item, shift, run, close, busy, discountRate }) {
   const [name,setName] = useState(item.name);
   const [price,setPrice] = useState(item.basePrice);
   const [quantity,setQuantity] = useState(item.quantity);
+  const [payment,setPayment] = useState(item.paymentMethod || '');
   const [discount,setDiscount] = useState(item.discountPercent > 0);
   const rate = item.discountPercent || discountRate;
-  return <form onSubmit={async e => { e.preventDefault(); if (await run({ type: 'editItem', payload: { shiftId: shift.id, itemId: item.id, name, price: Number(price), quantity: Number(quantity), discount } }, 'Позиция обновлена')) close(); }}><fieldset disabled={busy}>
+  return <form onSubmit={async e => { e.preventDefault(); if (await run({ type: 'editItem', payload: { shiftId: shift.id, itemId: item.id, name, price: Number(price), quantity: Number(quantity), discount, paymentMethod: payment || undefined } }, 'Позиция обновлена')) close(); }}><fieldset disabled={busy}>
     {item.kind === 'product' ? <><p className="modal-description">{item.name} · {rub(item.unitPrice)} за шт.</p><label>Количество<input type="number" required min="1" max="100000" step="1" value={quantity} onChange={e => setQuantity(e.target.value)}/></label><p className="quiet">Цена этой позиции сохранена на момент добавления. Новую цену можно задать в настройках для будущих добавлений.</p></> : item.kind === 'pc' ? <label>Сумма, ₽<input type="number" required min="0" max="1000000000" step="1" value={price} onChange={e => setPrice(e.target.value)}/></label> : <><label>Название услуги<input required maxLength="180" value={name} onChange={e => setName(e.target.value)}/></label><label className="spaced-label">Сумма до дисконта, ₽<input type="number" required min="0" max="1000000000" step="1" value={price} onChange={e => setPrice(e.target.value)}/></label><button type="button" className={`discount-toggle spaced-label ${discount ? 'enabled' : ''}`} aria-pressed={discount} onClick={() => setDiscount(!discount)}><Percent size={16}/>Дисконт {rate}%{discount && <Check size={16}/>}</button><p className="quiet">Итого: {rub(discount ? net(price,rate) : Number(price))}</p></>}
+    <label className="spaced-label">Способ оплаты<select aria-label="Способ оплаты" value={payment} onChange={e => setPayment(e.target.value)}>{!item.paymentMethod && <option value="">Не указано (старая запись)</option>}<option value="cash">Наличка</option><option value="transfer">Перевод</option></select></label>
     <div className="modal-footer"><Button type="button" onClick={close}>Отмена</Button><Button variant="primary" type="submit">Сохранить</Button></div>
   </fieldset></form>;
 }
@@ -147,9 +159,10 @@ function SettingsPage({ data, run, busy, setModal, confirm }) {
 function HistoryPage({ data, open, confirm, run, busy }) {
   const [from,setFrom] = useState(''); const [to,setTo] = useState(''); const [period,setPeriod] = useState('all');
   const shifts = data.shifts.filter(s => s.status === 'closed' && (!from || s.date >= from) && (!to || s.date <= to) && (period === 'all' || s.period === period)).sort((a,b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+  const hasLegacy = shifts.some(s => s.items.some(i => !i.paymentMethod));
   return <><div className="page-title"><div><span className="eyebrow">ВСЁ ПОД РУКОЙ</span><h1>История учётов</h1><p>Завершённые смены и отчёты за любой день.</p></div></div>
     <div className="panel filters"><label>С даты<input type="date" value={from} onChange={e => setFrom(e.target.value)} max={to || '9999-12-31'}/></label><label>По дату<input type="date" value={to} onChange={e => setTo(e.target.value)} min={from || '1900-01-01'}/></label><label>Смена<select value={period} onChange={e => setPeriod(e.target.value)}><option value="all">Все смены</option><option value="day">День</option><option value="night">Ночь</option></select></label><button className="text-button" onClick={() => {setFrom('');setTo('');setPeriod('all');}}>Сбросить</button></div>
-    <section className="panel"><div className="panel-heading"><h2>Завершённые учёты <span className="count">{shifts.length}</span></h2><strong>{rub(shifts.reduce((a,s) => a+sum(s),0))}</strong></div>{shifts.length ? <div className="table-scroll"><table><thead><tr><th>Дата / смена</th><th>Позиции</th><th className="numeric">Товары</th><th className="numeric">PS</th><th className="numeric">ПК</th><th className="numeric">Итого</th><th/></tr></thead><tbody>{shifts.map(s => <tr key={s.id}><td><button className="date-link" onClick={() => open(s.id)}>{dateLabel(s.date)}<Badge shift={s}/></button><small className="shift-id">Учёт #{s.id.slice(0,8)}</small></td><td className="muted">{s.items.length}</td><td className="numeric muted">{rub(sum(s,'product'))}</td><td className="numeric muted">{rub(sum(s,'service'))}</td><td className="numeric muted">{rub(sum(s,'pc'))}</td><td className="numeric strong">{rub(sum(s))}</td><td><div className="row-actions"><IconButton title="Открыть отчёт" onClick={() => open(s.id)}><ArrowRight size={18}/></IconButton><IconButton title="Удалить учёт" disabled={busy} onClick={() => confirm('Удалить этот учёт?',`${dateLabel(s.date)} · ${dayLabel(s.period)}. Удаление нельзя отменить. Статистика будет пересчитана.`,() => run({type:'deleteShift',payload:{shiftId:s.id}},'Учёт удалён'))}><Trash2 size={16}/></IconButton></div></td></tr>)}</tbody></table></div> : <Empty icon={History} title="Учётов пока нет" text="Здесь появятся завершённые учёты. Если вы задали фильтр, попробуйте изменить даты."/>}</section>
+    <section className="panel"><div className="panel-heading"><h2>Завершённые учёты <span className="count">{shifts.length}</span></h2><strong>{rub(shifts.reduce((a,s) => a+sum(s),0))}</strong></div>{shifts.length ? <div className="table-scroll"><table><thead><tr><th>Дата / смена</th><th>Позиции</th><th className="numeric">Товары</th><th className="numeric">PS</th><th className="numeric">ПК</th><th className="numeric">Наличка</th><th className="numeric">Перевод</th>{hasLegacy && <th className="numeric">Не указано</th>}<th className="numeric">Итого</th><th/></tr></thead><tbody>{shifts.map(s => <tr key={s.id}><td><button className="date-link" onClick={() => open(s.id)}>{dateLabel(s.date)}<Badge shift={s}/></button><small className="shift-id">Учёт #{s.id.slice(0,8)}</small></td><td className="muted">{s.items.length}</td><td className="numeric muted">{rub(sum(s,'product'))}</td><td className="numeric muted">{rub(sum(s,'service'))}</td><td className="numeric muted">{rub(sum(s,'pc'))}</td><td className="numeric muted">{rub(paidSum(s,'cash'))}</td><td className="numeric muted">{rub(paidSum(s,'transfer'))}</td>{hasLegacy && <td className="numeric muted">{rub(paidSum(s,'unknown'))}</td>}<td className="numeric strong">{rub(sum(s))}</td><td><div className="row-actions"><IconButton title="Открыть отчёт" onClick={() => open(s.id)}><ArrowRight size={18}/></IconButton><IconButton title="Удалить учёт" disabled={busy} onClick={() => confirm('Удалить этот учёт?',`${dateLabel(s.date)} · ${dayLabel(s.period)}. Удаление нельзя отменить. Статистика будет пересчитана.`,() => run({type:'deleteShift',payload:{shiftId:s.id}},'Учёт удалён'))}><Trash2 size={16}/></IconButton></div></td></tr>)}</tbody></table></div> : <Empty icon={History} title="Учётов пока нет" text="Здесь появятся завершённые учёты. Если вы задали фильтр, попробуйте изменить даты."/>}</section>
   </>;
 }
 function StatsPage({ data }) {
@@ -210,7 +223,7 @@ function App() {
   const closeModal = () => {if(!busy)setModal(null);};
   const deleteItem = item => confirm(`Удалить «${item.name}»?`,'Позиция будет удалена из этого учёта.',() => run({type:'deleteItem',payload:{shiftId:shift.id,itemId:item.id}},'Позиция удалена'));
   const editItem = item => setModal({type:'item',item,shiftId:shift.id});
-  return <div className="app"><aside className="sidebar"><div className="brand"><div className="brand-mark">da<span/></div><div>Dlya Adminov<small>Порядок в каждом дне</small></div></div><div className="nav-label">РАБОЧЕЕ МЕСТО</div><nav>{Object.keys(names).map(key => {const Icon = icons[key]; return <button key={key} className={page === key ? 'active' : ''} onClick={() => navigate(key)}><Icon size={19}/>{names[key]}{key === 'ledger' && active && <span className="nav-dot"/>}</button>;})}</nav><div className="sidebar-bottom"><div className="offline"><span/>Работает без интернета</div><button className="theme-button" disabled={busy} onClick={() => run({type:'theme',payload:{theme:data.settings.theme === 'light' ? 'dark' : 'light'}})}>{data.settings.theme === 'light' ? <Moon size={18}/> : <Sun size={18}/>}<span>{data.settings.theme === 'light' ? 'Тёмная тема' : 'Светлая тема'}</span></button><div className="app-version">Dlya Adminov <span>1.1.0</span></div></div></aside>
+  return <div className="app"><aside className="sidebar"><div className="brand"><div className="brand-mark">da<span/></div><div>Dlya Adminov<small>Порядок в каждом дне</small></div></div><div className="nav-label">РАБОЧЕЕ МЕСТО</div><nav>{Object.keys(names).map(key => {const Icon = icons[key]; return <button key={key} className={page === key ? 'active' : ''} onClick={() => navigate(key)}><Icon size={19}/>{names[key]}{key === 'ledger' && active && <span className="nav-dot"/>}</button>;})}</nav><div className="sidebar-bottom"><div className="offline"><span/>Работает без интернета</div><button className="theme-button" disabled={busy} onClick={() => run({type:'theme',payload:{theme:data.settings.theme === 'light' ? 'dark' : 'light'}})}>{data.settings.theme === 'light' ? <Moon size={18}/> : <Sun size={18}/>}<span>{data.settings.theme === 'light' ? 'Тёмная тема' : 'Светлая тема'}</span></button><div className="app-version">Dlya Adminov <span>1.2.0</span></div></div></aside>
     <div className="workspace"><header className="topbar"><div className="breadcrumb">Рабочее место <span>/</span> <strong>{report ? 'Отчёт' : names[page]}</strong></div><div className="topbar-date"><CalendarDays size={16}/>{dateLabel(today())}</div></header><main>
     {error && <div className="error" role="alert">{error}<IconButton title="Закрыть уведомление" onClick={() => setError('')}><X size={16}/></IconButton></div>}
     {report ? <>
